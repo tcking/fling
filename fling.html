@@ -1,0 +1,204 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml">
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+<script src="jquery-1.7.1.min.js"></script>
+<title>毛毛球</title>
+<style>
+table{
+border:1px solid blue;
+}
+table td{
+border:1px solid blue;
+width:25px;
+height:25px;
+padding:0;
+margin:0;
+border-collapse:collapse;
+vertical-align:middle;
+text-align:center;
+cursor:pointer;
+}
+</style>
+</head>
+
+<body>
+<div id='c'></div>
+<input type="button" onclick="Earth.clear()" value="clear" />
+<input type="button" onclick="Earth.play()" value="play" />
+<center>
+<div id="theEarth"></div>
+<p id="console"></p>
+<center>
+</body>
+<script>
+var Util={
+	isDebug:false,
+	debug:function(msg){
+		if(this.isDebug)
+		console.log(msg);
+	}
+}
+var Earth={
+	x:7,//宽
+	y:8,//高
+	path:[],//成功路径
+	flings:[],//地球上的毛毛球
+	putFling:function(x,y){
+		if(this.findFling(x,y)>=0){
+			this.popFling(x,y);
+		}else{
+			var id=Earth.flings.length;
+			Earth.flings.push(new Fling(id,x,y,Earth.flings));
+			$('tr:eq('+(y-1)+') > td:eq('+(x-1)+')').html(id+1);
+		}
+	},findFling:function(x,y){
+		for(var i=0;i<this.flings.length;i++){
+			if(this.flings[i].x==x &&this.flings[i].y==y){
+				return i;
+			}
+		} 
+		return -1;
+	},popFling:function(x,y){
+		var i=this.findFling(x,y);
+		if(i>=0){
+			$('tr:eq('+(y-1)+') > td:eq('+(x-1)+')').html('');
+			this.flings.splice(i,1);
+		}
+	},
+	clear:function(){//清除
+		Earth.flings=[];
+		Earth.path=[];
+		$('td',Earth.e).html('');
+		$('#concole').html('');
+	},
+	init:function(c,x,y){
+		Earth.y=y;
+		Earth.x=x;
+		var t=$('<table cellspacing="0" cellpadding="0">');
+		var sb=[];
+		for(var i=0;i<y;i++){
+			sb.push('<tr>');
+			for(var j=0;j<x;j++){
+				sb.push('<td></td>');
+			}
+			sb.push('</tr>');
+		}
+		t.html(sb.join(''))
+		t.appendTo('#'+c);
+		$('td',t).click(function(){
+			Earth.putFling(this.cellIndex+1,this.parentNode.rowIndex+1);
+		});
+		Earth.e=t;
+	},
+	getTargetFling:function(flings,fling,d){
+		 var tf=Earth.getFling(flings,fling.x,fling.y,d);
+		 if(tf!=null && (Math.abs(fling.x-tf.x)==1 || Math.abs(fling.y-tf.y)==1)){//相邻的球
+		 	return null;
+		 }else{
+		 	return tf;
+		 }
+	},
+	getFling:function(flings,x,y,d){
+		if(d=='E'){
+			x++
+		}else if(d=='S'){
+			y++
+		}else if(d=='W'){
+			x--
+		}else{
+			y--
+		}
+		if(x>Earth.x || x<0 || y>Earth.y || y<0){
+			return null;
+		}
+		for(var i=0;i<flings.length;i++){
+			var f=flings[i];
+			if(f.x==x&&f.y==y){
+				return f;
+			}
+		}
+		return Earth.getFling(flings,x,y,d);
+	},getCurrentFling:function(flings){
+		var c=[];
+		for(var i=0;i<flings.length;i++){
+			var f=flings[i];
+			if(f.alive){
+				c.push(new Fling(f.id,f.x,f.y,c));
+			}
+		}
+		return c;
+	},
+	play:function(){
+		if(Earth.run(Earth.flings)){
+			$('#console').html(Earth.path.join('<br>'));
+		}else{
+			$('#console').html('此题无解');
+		}
+		
+	},run:function(flings){
+		Util.debug('level:'+Earth.level);
+		if(flings.length==1){//只有一个球完成任务
+			return true;;
+		}
+		for(var i=0;i<flings.length;i++){
+			for(var j=0;j<Direction.length;j++){
+				var _flings=Earth.getCurrentFling(flings);//根据当前场景做下一次尝试
+				var newflings=_flings[i].doMove(Direction[j]);
+				if(newflings && Earth.run(newflings)){//移动后的新场景
+					return true;
+				}
+				Earth.path.pop();
+			}
+		}
+		return false
+	}
+};
+var Direction=['N','E','S','W'];//能移动的4个方向
+var Fling=function(id,x,y,flings){
+	this.id=id;
+	this.x=x;
+	this.y=y;
+	this.flings=flings;
+	this.alive=true;//false表示不在地球上
+	this.pre;//与之相撞的球
+	this.path=[];
+	this.goto=function(x,y){
+		Util.debug('fling '+(this.id+1)+' goto:['+this.x+','+this.y+']->['+x+','+y+']');
+		this.x=x;
+		this.y=y;
+		this.flings.isChanged=true;
+	};
+	this.doMove=function(d){//执行移动操作
+		if(this.pre==null){
+			Earth.path.push((this.id+1)+'->'+d);
+		}
+		var tf=Earth.getTargetFling(this.flings,this,d);//获取要碰撞的fling
+		if(tf){
+			if(d=='E'){
+				this.goto(tf.x-1,this.y);
+			}else if(d=='S'){
+				this.goto(this.x,tf.y-1);
+			}else if(d=='W'){
+				this.goto(tf.x+1,this.y);
+			}else{
+				this.goto(this.x,tf.y+1);
+			}
+			tf.pre=this;
+			tf.doMove(d);
+		}else{
+			if(this.pre!=null){
+				this.alive=false;//被撞飞
+			}
+		}
+		if(this.flings.isChanged){
+			return Earth.getCurrentFling(this.flings);
+		}else{
+			return null;
+		}
+	    
+	}
+}
+Earth.init('c',7,8);
+</script>
+</html>

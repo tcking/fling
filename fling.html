@@ -1,4 +1,4 @@
-<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<!DOCTYPE html>
 <html xmlns="http://www.w3.org/1999/xhtml">
 <head>
 <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
@@ -19,13 +19,23 @@ vertical-align:middle;
 text-align:center;
 cursor:pointer;
 }
+.fling{
+width:25px;
+height:23px;
+background-color:red;
+position:absolute;
+line-height: 23px;
+text-align: center;
+}
 </style>
 </head>
 
 <body>
+<div id="test"></div>
 <div id='c'></div>
 <input type="button" onclick="Earth.clear()" value="clear" />
 <input type="button" onclick="Earth.play()" value="play" />
+<input type="button" onclick="Earth.show()" value="show" />
 <center>
 <div id="theEarth"></div>
 <p id="console"></p>
@@ -33,7 +43,7 @@ cursor:pointer;
 </body>
 <script>
 var Util={
-	isDebug:false,
+	isDebug:true,
 	debug:function(msg){
 		if(this.isDebug)
 		console.log(msg);
@@ -44,13 +54,25 @@ var Earth={
 	y:8,//高
 	path:[],//成功路径
 	flings:[],//地球上的毛毛球
+	inAction:false,
+	E:'500px',
+	S:'500px',
+	W:'0',
+	N:'0',
+	animate:[],
 	putFling:function(x,y){
 		if(this.findFling(x,y)>=0){
 			this.popFling(x,y);
 		}else{
 			var id=Earth.flings.length;
-			Earth.flings.push(new Fling(id,x,y,Earth.flings));
-			$('tr:eq('+(y-1)+') > td:eq('+(x-1)+')').html(id+1);
+			var t=$('tr:eq('+(y-1)+') > td:eq('+(x-1)+')');
+			//t.html(id+1);
+			var offset=t.offset();
+			offset.left++;offset.top++;
+			var f=$('<div class="fling">'+(id+1)+'</div>');
+			f.offset(offset);
+			$('body').append(f);
+			Earth.flings.push(new Fling(id,x,y,Earth.flings,f));
 		}
 	},findFling:function(x,y){
 		for(var i=0;i<this.flings.length;i++){
@@ -69,8 +91,11 @@ var Earth={
 	clear:function(){//清除
 		Earth.flings=[];
 		Earth.path=[];
+		this.inAction=false;
+		$(document).clearQueue('fling');
 		$('td',Earth.e).html('');
-		$('#concole').html('');
+		$('#console').html('');
+		$('.fling').remove();
 	},
 	init:function(c,x,y){
 		Earth.y=y;
@@ -124,7 +149,7 @@ var Earth={
 		for(var i=0;i<flings.length;i++){
 			var f=flings[i];
 			if(f.alive){
-				c.push(new Fling(f.id,f.x,f.y,c));
+				c.push(new Fling(f.id,f.x,f.y,c,f.substitute));
 			}
 		}
 		return c;
@@ -152,14 +177,30 @@ var Earth={
 			}
 		}
 		return false
+	},show:function(){
+		if(this.path.length==0){
+			this.play();
+		}
+		Earth.inAction=true;
+		for(var i=0;i<Earth.path.length;i++){
+			var p=Earth.path[i];
+			Earth.flings[p.id].doMove(p.d);
+		}
+		this.queue();
+		this.dequeue();
+	},dequeue:function(){
+		$(document).dequeue('fling');
+	},queue:function(){
+		$(document).queue('fling',Earth.animate);
 	}
 };
 var Direction=['N','E','S','W'];//能移动的4个方向
-var Fling=function(id,x,y,flings){
+var Fling=function(id,x,y,flings,substitute){
 	this.id=id;
 	this.x=x;
 	this.y=y;
 	this.flings=flings;
+	this.substitute=substitute;
 	this.alive=true;//false表示不在地球上
 	this.pre;//与之相撞的球
 	this.path=[];
@@ -168,10 +209,21 @@ var Fling=function(id,x,y,flings){
 		this.x=x;
 		this.y=y;
 		this.flings.isChanged=true;
+		if(Earth.inAction){
+			var t=$('tr:eq('+(this.y-1)+') > td:eq('+(this.x-1)+')');
+			var offset=t.offset();
+			offset.left++;
+			offset.top++;
+			var id=this.id;
+			Earth.animate.push(function(){
+				Earth.flings[id].substitute.animate({left:offset.left,top:offset.top},{queue:false,duration:500,complete:function(){
+					Earth.dequeue()}});
+			});
+		}
 	};
 	this.doMove=function(d){//执行移动操作
-		if(this.pre==null){
-			Earth.path.push((this.id+1)+'->'+d);
+		if(this.pre==null && !Earth.inAction){
+			Earth.path.push({id:this.id,d:d,toString:function(){return (this.id+1)+'->'+this.d}});
 		}
 		var tf=Earth.getTargetFling(this.flings,this,d);//获取要碰撞的fling
 		if(tf){
@@ -189,6 +241,21 @@ var Fling=function(id,x,y,flings){
 		}else{
 			if(this.pre!=null){
 				this.alive=false;//被撞飞
+				if(Earth.inAction){
+					var id=this.id,o={opacity:0};
+					if(d=='E'){
+						o.left=Earth.E;
+					}else if(d=='S'){
+						o.top=Earth.S;
+					}else if(d=='W'){
+						o.left=Earth.W;
+					}else{
+						o.top=Earth.N;
+					}
+					Earth.animate.push(function(){
+						Earth.flings[id].substitute.animate(o,{queue:false,duration:300,complete:function(){Earth.dequeue()}});
+					});
+				}
 			}
 		}
 		if(this.flings.isChanged){

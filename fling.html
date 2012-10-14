@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
 <html xmlns="http://www.w3.org/1999/xhtml">
 <head>
 <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
@@ -7,6 +7,7 @@
 <style>
 table{
 border:1px solid blue;
+position:relative;
 }
 table td{
 border:1px solid blue;
@@ -21,7 +22,7 @@ cursor:pointer;
 }
 .fling{
 width:25px;
-height:23px;
+height:25px;
 background-color:red;
 position:absolute;
 line-height: 23px;
@@ -45,7 +46,7 @@ text-align: center;
 var Util={
 	isDebug:true,
 	debug:function(msg){
-		if(this.isDebug)
+		if(this.isDebug && console && console.log)
 		console.log(msg);
 	}
 }
@@ -89,13 +90,14 @@ var Earth={
 		}
 	},
 	clear:function(){//清除
-		Earth.flings=[];
+		/*Earth.flings=[];
 		Earth.path=[];
 		this.inAction=false;
 		$(document).clearQueue('fling');
 		$('td',Earth.e).html('');
 		$('#console').html('');
-		$('.fling').remove();
+		$('.fling').remove();*/
+		window.location.reload(true);
 	},
 	init:function(c,x,y){
 		Earth.y=y;
@@ -118,7 +120,7 @@ var Earth={
 	},
 	getTargetFling:function(flings,fling,d){
 		 var tf=Earth.getFling(flings,fling.x,fling.y,d);
-		 if(tf!=null && (Math.abs(fling.x-tf.x)==1 || Math.abs(fling.y-tf.y)==1)){//相邻的球
+		 if(tf!=null && fling.pre==null && (Math.abs(fling.x-tf.x)==1 || Math.abs(fling.y-tf.y)==1)){//相邻的球
 		 	return null;
 		 }else{
 		 	return tf;
@@ -139,7 +141,7 @@ var Earth={
 		}
 		for(var i=0;i<flings.length;i++){
 			var f=flings[i];
-			if(f.x==x&&f.y==y){
+			if(f.alive && f.x==x&&f.y==y){
 				return f;
 			}
 		}
@@ -162,7 +164,6 @@ var Earth={
 		}
 		
 	},run:function(flings){
-		Util.debug('level:'+Earth.level);
 		if(flings.length==1){//只有一个球完成任务
 			return true;;
 		}
@@ -253,6 +254,7 @@ var Fling=function(id,x,y,flings,substitute){
 						o.top=Earth.N;
 					}
 					Earth.animate.push(function(){
+						Util.debug((id+1)+' is out');
 						Earth.flings[id].substitute.animate(o,{queue:false,duration:300,complete:function(){Earth.dequeue()}});
 					});
 				}
